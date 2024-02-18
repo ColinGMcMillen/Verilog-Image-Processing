@@ -14,9 +14,7 @@
 // 1 : brightness increase
 // 2 : darkness increase
 // 3 : invert image 
-// 4 : add red tint
-// 5 : add green tint
-// 6 : add blue tint
+
 
 
 module processing(clk, rst, operation);
@@ -41,7 +39,7 @@ module processing(clk, rst, operation);
   
     
   
-  //try and implement a block RAM here
+ 
   
   reg[23:0]MEM[0:pixelSize-1];     // making the memory for the list file
 
@@ -54,18 +52,18 @@ module processing(clk, rst, operation);
  
 reg[19:0] counter; //19 bit counter to cover all 392,216 pixels in the image
 reg [7:0] BMP_header[0:53]; // for the header of the BMP image
-reg done;
+reg done;  //signal high when all pixels are processed
 
 
 
 //Pipeline Registers
-reg [7:0] redValue2 ,greenValue2, blueValue2; // we want to parse new pixel data at the same time that we process old pixel data
+  reg [7:0] redValue2 ,greenValue2, blueValue2; // we want to parse new pixel data at the same time that we process old pixel data, pipelined
 
 
     always@(posedge clk) begin
     if(rst) begin
-    counter = ZERO;
-    done = ZERO;    
+    counter = ZERO;  //reset high
+    done = ZERO;      //reset high  
       end
     else begin
       if(counter <= pixelSize-1) counter = counter + 1; // update the counter at every clock pulse
@@ -85,8 +83,10 @@ integer j;     //For the output loop
 initial begin
  file = $fopen("out.bmp", "wb+");    // open file for writing in binary mode, reading and writing in case
 
-i = ZERO;
-j = ZERO;  
+i = ZERO;  //init
+j = ZERO;  //init
+
+  //All the BMP file header componenets, write out in detail to avoid errors
 BMP_header[ 0] = 66;BMP_header[28] = 24; 
 BMP_header[ 1] = 77;BMP_header[29] = 0; 
 BMP_header[ 2] = 54;BMP_header[30] = 0; 
@@ -116,7 +116,7 @@ BMP_header[25] = 0;BMP_header[53] = 0;
 BMP_header[26] = 1; BMP_header[27] = 0; 
     
  
-    
+  //Write all the BMP file headers to output, don't use a loop
     $fwrite(file, "%c", BMP_header[0]); $fwrite(file, "%c", BMP_header[1]);
     $fwrite(file, "%c", BMP_header[2]); $fwrite(file, "%c", BMP_header[3]);
     $fwrite(file, "%c", BMP_header[4]); $fwrite(file, "%c", BMP_header[5]);
@@ -149,20 +149,19 @@ BMP_header[26] = 1; BMP_header[27] = 0;
  
  
  // Read the hex code, process that hex code, write the hex code back to memory, increment the counter
- //could be an issue with ontinously still doing the state mahcine even after all the hex codes have been changed
  always@(posedge clk)begin
   
- redValue <= MEM[counter][23:16];   // parse these values from the list file 
- greenValue <= MEM[counter][15:8];  
- blueValue <= MEM[counter][7:0]; 
+   redValue <= MEM[counter][23:16];   //Parse
+   greenValue <= MEM[counter][15:8];  //Parse
+   blueValue <= MEM[counter][7:0];    //Parse
    
  end
  
 always@(posedge clk)begin
 //update new register values with old values from previous always block to allow old regs to reprase new data instead of waiting
-redValue2     <= redValue;  //pipeline
-greenValue2   <= greenValue;  //pipeline
-blueValue2    <= blueValue;    //pipeline
+redValue2     <= redValue;      //pipeline
+greenValue2   <= greenValue;    //pipeline
+blueValue2    <= blueValue;     //pipeline
 
 //Implement case statements to remove multiplexer trees
 
@@ -222,6 +221,7 @@ always @(done) begin
   if (done == 1) begin
     for (j = HEIGHT - 1; j >= 0; j = j - 1) begin
       for (i = 0; i <= WIDTH - 1; i = i + 1) begin
+        //BMP files require RGB written backwards, BGR
         $fwrite(file, "%c%c%c", MEM[i*HEIGHT + j][7:0], MEM[i*HEIGHT + j][15:8], MEM[i*HEIGHT + j][23:16]);
       end
     end
@@ -241,7 +241,7 @@ endmodule
 
 
 
-
+//TESTBENCH FOR IMAGE FILES
 
 module processing_tb;
   reg clk, rst;
@@ -256,6 +256,7 @@ module processing_tb;
    // $dumpvars(0, processing_tb);
    // $dumpoff;
    // $dumpon;
+    //Do not need a VCD
     
     clk = 0;  // start clk
     rst = 1;  // start rst to get counter started
